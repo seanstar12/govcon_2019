@@ -1,0 +1,5 @@
+name = Govcon Chat
+description = Demo
+package = govcon_chat
+core = 7.x
+version = 7.x-0.1

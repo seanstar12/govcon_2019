@@ -1,0 +1,572 @@
+<?php
+
+define('SLACK_USER_API', 'https://slack.com/api/users.info');
+
+function govcon_chat_menu() {
+  $items = array();
+
+  $items['govcon-chat/verify'] = [
+    'page callback'    => 'govcon_chat_ajax_cb',
+    'access callback'  => TRUE,
+    'type'             => MENU_CALLBACK,
+  ];
+
+  $items['ajax/message'] = [
+    'title'            => 'Govcon Chat',
+    'page callback'    => 'govcon_chat_ajax_cb',
+    'access arguments' => array('use govcon chat'),
+    'type'             => MENU_CALLBACK,
+    'file'             => 'govcon_chat.ajax.inc',
+  ];
+
+  $items['admin/config/system/govcon-chat'] = [
+    'description' => 'Configure Govcon Chat',
+    'file' => 'govcon_chat.admin.inc',
+    'page callback' => 'drupal_get_form',
+    'title' => 'Govcon chat',
+    'type' => MENU_NORMAL_ITEM,
+    'page arguments' => array('govcon_chat_config_form'),
+    'access arguments' => array('configure govcon chat'),
+  ];
+
+  $items['govcon-chat/ajax'] = array(
+    'title' => 'Govcon chat callback',
+    'page callback' => 'govcon_chat_ajax_cb',
+    'access arguments' => array('use govcon chat'),
+    'type' => MENU_CALLBACK,
+    'file' => 'govcon_chat.ajax.inc',
+  );
+
+  return $items;
+} 
+
+
+/**
+ * Implements hook_permission().
+ */
+function govcon_chat_permission() {
+  return array(
+    'use govcon chat' => array(
+      'title' => t('To chat'),
+    ),
+    'configure govcon chat' => array(
+      'title' => t('Configure govcon chat'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_theme().
+ */
+function govcon_chat_theme($existing, $type, $theme, $path) {
+  return array(
+    'govcon_chat_chat' => array(
+      'variables' => array(),
+      'path' => drupal_get_path('module', 'govcon_chat') . '/templates',
+      'template' => 'govcon-chat-chat',
+    ),
+    'govcon_chat_floating_window' => array(
+      'render element' => 'element',
+      'path' => drupal_get_path('module', 'govcon_chat') . '/templates',
+      'template' => 'govcon-chat-floating-window',
+    ),
+  );
+}
+
+/**
+ * Implements hook_page_alter().
+ */
+function govcon_chat_page_alter(&$page) {
+  $allowedPages = explode(',', variable_get('govcon_chat_page_whitelist', '*'));
+  $path = drupal_strtolower(drupal_get_path_alias($_GET['q']));
+  $path_alias = drupal_lookup_path('alias', $path);
+
+  foreach ($allowedPages as $_page) {
+    if ($page_match = drupal_match_path($path, $_page)) {
+      break;
+    }
+  }
+
+  if (!$page_match) return;
+
+  $page['page_bottom']['govcon_chat_floating_window'] = array(
+    '#theme' => 'govcon_chat_chat',
+    '#theme_wrappers' => array('govcon_chat_floating_window'),
+  );
+}
+
+function template_preprocess_govcon_chat_floating_window(&$vars) {
+  $vars['title'] = variable_get('govcon_chat_window_title', t('Chat with us!'));
+  $vars['chat'] = $vars['element']['#children'];
+}
+
+/**
+ * Implements hook_preprocess_hook().
+ */
+function template_preprocess_govcon_chat_chat(&$vars) {
+  drupal_add_css(drupal_get_path('module', 'govcon_chat') . '/css/govcon_chat.css');
+  drupal_add_js(drupal_get_path('module', 'govcon_chat') . '/js/govcon_chat.js');
+
+  $js_settings = array(
+    'csrf_token' => drupal_get_token('govcon_chat_csrf'),
+    'url' => 'ajax/message',
+    'session' => session_id(),
+    'chat_started' => !empty($_SESSION['govcon_chat_session']),
+  );
+
+  $vars['chat_id'] = FALSE;
+  $vars['messages'] = array();
+  $vars['classes_array'] = array('govcon-chat');
+
+  drupal_add_js(array('slackChat' => $js_settings), 'setting');
+
+  $vars['welcome_message'] = variable_get('govcon_chat_welcome_message', t('Welcome. How can we help you?'));
+  $vars['ended_message'] = 'This chat is over.';
+
+  $vars['name_field'] = array(
+    '#theme' => 'textfield',
+    '#theme_wrappers' => array('form_element'),
+    '#title' => t('Enter your name to start a chat'),
+    '#maxlength' => 20,
+    '#autocomplete_path' => FALSE,
+    '#required' => TRUE,
+    '#id' => 'govcon-chat-name-field',
+    '#attributes' => array(
+      'class' => array('govcon-chat-name-field'),
+    ),
+  );
+
+  $vars['start_button'] = array(
+    '#theme' => 'button',
+    '#value' => t('Start'),
+    '#button_type' => 'submit',
+    '#attributes' => array(
+      'class' => array('govcon-chat-start-button'),
+    ),
+  );
+
+  $vars['message_field'] = array(
+    '#theme' => 'textfield',
+    '#theme_wrappers' => array('form_element'),
+    '#maxlength' => 4000,
+    '#autocomplete_path' => FALSE,
+    '#id' => 'govcon-chat-message-field',
+    '#attributes' => array(
+      'class' => array('govcon-chat-message-field'),
+      'placeholder' => t('Type a message...'),
+    ),
+  );
+
+  $vars['send_button'] = array(
+    '#theme' => 'button',
+    '#value' => t('Send'),
+    '#button_type' => 'submit',
+    '#attributes' => array(
+      'class' => array('govcon-chat-send-button'),
+    ),
+  );
+
+  $vars['end_button'] = array(
+    '#theme' => 'button',
+    '#value' => t('End chat'),
+    '#button_type' => 'submit',
+    '#attributes' => array(
+      'class' => array('govcon-chat-end-button'),
+    ),
+  );
+}
+
+function _find_chat($session = "") {
+  if ($session == "") return false;
+
+  $nid = 0;
+  $query = new EntityFieldQuery();
+  $nodes = $query->entityCondition('entity_type', 'node', '=')
+    ->entityCondition('bundle', 'chat')
+    ->fieldCondition('field_session_id', 'value', $session, '=')
+    ->execute();
+
+  if (isset($nodes['node'])) {
+    $nid = array_keys($nodes['node'])[0];
+  }
+
+  $open = fopen('php://stderr','w');
+  fputs($open, json_encode(['nid' => $nid, 'session' => $session]));
+  
+}
+
+function _get_ts_from_session($session = "") {
+  $query = new EntityFieldQuery();
+  $nodes = $query->entityCondition('entity_type', 'node', '=')
+    ->entityCondition('bundle', 'chat')
+    ->fieldCondition('field_session_id', 'value', $session, '=')
+    ->execute();
+  
+  $node_wrap = entity_metadata_wrapper('node', array_keys($nodes['node'])[0]);
+
+  return $node_wrap->field_thread_ts->value();
+}
+
+function govcon_chat_ajax_cb() {
+  global $_POST;
+  $json = json_decode(file_get_contents('php://input')) ?? (object) ['no' => 'worky'];
+
+  if ($_POST) {
+    switch ($_POST['type']) {
+      // drupal to slack from webchat
+      case 'drupal_message':
+        watchdog('govcon_chat_slack_dm', json_encode($_POST),[], WATCHDOG_INFO);
+
+        // get the TS from the session id so that we can respond to the thread
+        $ts = _get_ts_from_session($_POST['session']) ?? null;
+        $response = _post_to_slack_api($_POST['text'], $ts);
+
+        //fputs($open, json_encode(['response' => $response, 'case' => 'drupal_message']));
+        $query = new EntityFieldQuery();
+        $nodes = $query->entityCondition('entity_type', 'node', '=')
+          ->entityCondition('bundle', 'chat')
+          ->fieldCondition('field_session_id', 'value', $_POST['session'], '=')
+          ->execute();
+
+        $msg_id = 0;
+        if (isset($nodes['node'])) {
+          $nid = array_keys($nodes['node'])[0];
+          $node = entity_load('node', [$nid]);
+          //return drupal_json_output(['node'=> $node, 'nid' => $nid]);
+          $e_wrap = entity_metadata_wrapper('node', $node[$nid]);
+          $e_wrap->field_thread_ts = $response['ts'];
+
+          $field_collection = entity_create('field_collection_item', ['field_name' => 'field_messages']);
+          $field_collection->setHostEntity('node', $e_wrap->value());
+          $collection = entity_metadata_wrapper('field_collection_item', $field_collection);
+          $collection->field_chat_user = 'Me';
+          $collection->field_chat_message = $response['message']['text'];
+          $collection->field_chat_message_time = explode('.', $response['message']['ts'])[0];
+          $collection->field_ts = $response['ts'] ?? uniqid();
+
+          $collection->save();
+          $e_wrap->save();
+          $msg_id = $collection->item_id->value();
+        }
+        return drupal_json_output(['status'=>'ok', 'nodes' => $nodes, 'message' => $response['message']]);
+
+      case 'drupal_get_chat':
+        $query = new EntityFieldQuery();
+        $nodes = $query->entityCondition('entity_type', 'node', '=')
+          ->entityCondition('bundle', 'chat')
+          ->fieldCondition('field_session_id', 'value', $_POST['session'], '=')
+          ->execute();
+
+        $_node = array_keys($nodes['node']);
+        $nodes = entity_load('node', $_node);
+
+        $_POST['load_nodes'] = $nodes;
+
+        foreach($nodes as $key => $val) {
+          $entries = array('entriesArray' => "yay");
+          $node_entity = entity_metadata_wrapper('node', $val);
+          $messages = [];
+
+          // secondary foreach for unlimited entities.
+          foreach ($node_entity->field_messages as $index => $entry) {
+            $messages[] = array(
+              'user' => $entry->field_chat_user->value(),
+              'user_image' => $entry->field_chat_user_image->value(),
+              'time' => $entry->field_chat_message_time->value(),
+              'text' => $entry->field_chat_message->value(),
+              'ts' => $entry->field_ts->value(),
+              'id' => $entry->item_id->value(),
+              //'full' => $entry->getPropertyInfo(),
+            );
+          }
+        }
+
+
+        drupal_add_http_header('Set-Cookie', 'session=' . $_POST['session']. ";Domain=govcon.starn.es;Path=/;");
+        $_POST['status'] = 'ok';
+        $_POST['messages'] = $messages;
+        return drupal_json_output($_POST);
+
+      case 'drupal_start_chat':
+        watchdog('govcon_chat_slack_ds', json_encode($_POST),[], WATCHDOG_INFO);
+        fputs($open, json_encode(['_POST' => $_POST, 'case' => 'drupal_start_chat']));
+        $values = [
+          'type' => 'chat',
+          'uid' => 0,
+          'status' => 1,
+          'promote' => 0,
+          'comment' => 0,
+        ];
+
+        $query = new EntityFieldQuery();
+        $nodes = $query->entityCondition('entity_type', 'node', '=')
+          ->entityCondition('bundle', 'chat')
+          ->fieldCondition('field_session_id', 'value', $_POST['session'], '=')
+          ->execute();
+
+        $_node = [];
+        //$open = fopen('php://stderr','w');
+        //fputs($open, json_encode(['nodes[node]' => $nodes, 'set' => isset($nodes['node']), 'session' => $_POST['session']]));
+
+        if (!isset($nodes['node'])) {
+          $entity = entity_create('node', $values);
+          $e_wrap = entity_metadata_wrapper('node', $entity);
+          $e_wrap->title = $_POST['session'];
+          $e_wrap->field_session_id = $_POST['session'];
+          $e_wrap->save();
+
+          $_node[] = $e_wrap->value()->nid;
+        }
+
+        if (empty($_node)) $_node = array_keys($nodes['node']);
+
+        //fputs($open, json_encode(['nid' => $_node]));
+
+        $nodes = entity_load('node', $_node);
+        $_POST['data'] = $nodes;
+        $_POST['nid'] = $_node;
+
+        foreach($nodes as $key => $val) {
+          $entries = array('entriesArray' => "yay");
+          $node_entity = entity_metadata_wrapper('node', $val);
+          $messages = [];
+
+          // secondary foreach for unlimited entities.
+          foreach ($node_entity->field_messages as $index => $entry) {
+            $messages[] = array(
+              'user' => $entry->field_chat_user->value(),
+              'user_image' => $entry->field_chat_user_image->value(),
+              'time' => $entry->field_chat_message_time->value(),
+              'text' => $entry->field_chat_message->value(),
+            );
+          }
+        }
+
+
+        drupal_add_http_header('Set-Cookie', 'session=' . $_POST['session']. ";Domain=govcon.starn.es;Path=/;");
+        $_POST['status'] = 'ok';
+        $_POST['messages'] = $messages;
+        return drupal_json_output($_POST);
+    }
+
+  }
+
+  else if (property_exists($json, 'type') && isset($json->type)) {
+    switch ($json->type) {
+      case 'url_verification':
+        return drupal_json_output(['challenge' => $json->challenge]);
+
+
+      case 'event_callback':
+        // if no $json->event->thread_ts -> message from 'Me' from slack
+        // initial message? shoulnd't need this because info is stored from create
+        // if yes $json->event->thread_ts -> message from Slack from slack user, 
+        // add to node and stuff
+        // needed because we don't have the session ID coming back from slack
+        if (!property_exists($json->event, 'thread_ts')) {
+          return drupal_json_output(['status' => 'ok']);
+        }
+
+        $thread = $json->event->thread_ts;
+
+        // find field_collection_items with same TS value
+        $efq = new EntityFieldQuery();
+        $efq->entityCondition('entity_type', 'field_collection_item');
+        $efq->fieldCondition('field_ts', 'value', $thread, '=');
+        $_efq = $efq->execute();
+
+        // store keys of found items
+        $_efq_keys = array_keys($_efq['field_collection_item']);
+
+        // Find the node associated with the TS value
+        $nfq = new EntityFieldQuery();
+        $nfq->entityCondition('entity_type', 'node');
+        $nfq->entityCondition('bundle', 'chat');
+        $nfq->fieldCondition('field_thread_ts', 'value', $thread, '=');
+        $_nfq = $nfq->execute();
+
+        $_nfq_keys = array_keys($_nfq['node']);
+        $_nfq_wrap = entity_metadata_wrapper('node', $_nfq_keys[0]);
+
+        // fetch slack user & photo
+        if ($slackUser = variable_get('govcon_chat_user-' . $json->event->user, false)) {
+          // had cached slack user
+          $slackUser['fromCache'] = true;
+        }
+        else {
+          $slackUser = _get_slack_user($json->event->user); 
+        }
+
+        // create new field_item_collection to store the received message
+        $f_collection = entity_create('field_collection_item', ['field_name' => 'field_messages']);
+        $f_collection->setHostEntity('node', $_nfq_wrap->value());
+        $col = entity_metadata_wrapper('field_collection_item', $f_collection);
+        $col->field_chat_message_time = $json->event->ts;
+        $col->field_chat_user = $slackUser['name'] ?? $json->event->name;
+        $col->field_chat_user_image = $slackUser['img'] ?? "";
+        $col->field_chat_message = $json->event->text;
+
+        $col->save();
+        
+        return drupal_json_output(['status' => 'ok', 'usr' => $slackUser]);
+
+      case 'event_callback_old':
+        $event = [
+          'ts' => $json->event->ts,
+          'thread_ts' => $json->event->thread_ts,
+          'message' => $json->event->text,
+          'raw' => $json
+        ];
+
+        if (isset($json->event->user)) {
+          if ($slackUser = variable_get('govcon_chat_user-' . $json->event->user, false)) {
+            // had cached slack user
+            $slackUser['fromCache'] = true;
+          }
+          else {
+            $slackUser = _get_slack_user($json->event->user); 
+          }
+        }
+
+        //$open = fopen('php://stderr','w');
+        //fputs($open, "\n");
+        ////fputs($open, json_encode(['event_callback' => true, 'slackUser' => $slackUser, 'event' => $event, 'response' => $response]));
+        //fputs($open, json_encode($json));
+        //fputs($open, "\n");
+
+        $event['slackUser'] = $slackUser;
+        watchdog('govcon_chat_slack', json_encode($event),[], WATCHDOG_INFO);
+
+
+        if (isset($event)) {
+          watchdog('govcon_chat-event', json_encode(['json' => $json]),[], WATCHDOG_INFO);
+          $efq = new EntityFieldQuery();
+          $efq->entityCondition('entity_type', 'field_collection_item');
+          $efq->propertyCondition('field_name', 'field_messages');
+          //$efq->propertyCondition('item_id', );
+          //$efq->propertyCondition('archived', 0);
+          //$efq->fieldCondition('field_chat_message_time', 'value', $json->event->ts, '=');
+
+          $_efq = $efq->execute();
+            
+          //$wrap_efq = entity_metadata_wrapper('field_collection_item', $node[$nid]);
+
+          fputs($open, "\n");
+          fputs($open, $json->event->ts);
+          fputs($open, "\n");
+          fputs($open, json_encode(['event_callback' => '$event', 'efq' => $_efq]));
+          fputs($open, "\n");
+
+        }
+        if (isset($response) || isset($event)) {
+          $query = new EntityFieldQuery();
+          $nodes = $query->entityCondition('entity_type', 'node', '=')
+            ->entityCondition('bundle', 'chat')
+            ->entityCondition('title', 'value', $_POST['session'], '=')
+            ->execute();
+
+          if (isset($nodes['node'])) {
+            $nid = array_keys($nodes['node'])[0];
+            $node = entity_load('node', [$nid]);
+            //return drupal_json_output(['node'=> $node, 'nid' => $nid]);
+            $e_wrap = entity_metadata_wrapper('node', $node[$nid]);
+            //$e_wrap->field_thread_ts = $response['ts'];
+
+            $field_collection = entity_create('field_collection_item', ['field_name' => 'field_messages']);
+            $field_collection->setHostEntity('node', $e_wrap->value());
+            $collection = entity_metadata_wrapper('field_collection_item', $field_collection);
+            $collection->field_chat_user = $response['slackUser']['name'] ?? $slackUser['name'];
+            $collection->field_chat_message = $response['message']['text'] ?? $event['message'];
+
+            $collection->save();
+          }
+        }
+
+        // shoudln't need return here, it's a response to slack. which isn't needed.
+        return drupal_json_output(['status' => 'ok']);
+        //return drupal_json_output($event);
+
+
+      default:
+        watchdog('govcon_chat', json_encode($json),[], WATCHDOG_INFO);
+
+        return drupal_json_output(['test' => 'i still verk', 'post' => $json]);
+    }
+  }
+}
+
+function _get_slack_user($id) {
+  $ch = curl_init();
+  $_token = variable_get('govcon_chat_bot_token', "");
+  $_url = SLACK_USER_API . "?token=" . $_token . "&user=" . $id;
+
+  curl_setopt($ch, CURLOPT_URL, $_url);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+  $output = curl_exec($ch);
+  $json = json_decode($output, true);
+
+  curl_close($ch);
+
+  $_slackUser = [
+    'name' => $json['user']['profile']['real_name'] ?? "",
+    'img' => urldecode($json['user']['profile']['image_72']) ?? "",
+  ];
+
+  variable_set('govcon_chat_user-' . $json['user']['id'], $_slackUser);
+
+  return $_slackUser;
+}
+
+function _post_to_slack_api($message = "", $thread_ts = null) {
+  $_token = variable_get('govcon_chat_bot_token', "");
+  $_channel = variable_get('govcon_chat_channel_id', "");
+  $_url = "https://slack.com/api/chat.postMessage". "?token=" . $_token . "&channel=" . $_channel . "&text=" . urlencode($message);
+  if ($thread_ts !== null) {
+    $_url = $_url . "&thread_ts=" . $thread_ts;
+  }
+  watchdog('govcon_chat_post_api', json_encode($_url),[], WATCHDOG_INFO);
+  $ch = curl_init();
+
+  curl_setopt($ch, CURLOPT_URL, $_url);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+  $output = curl_exec($ch);
+  $json = json_decode($output, true);
+
+  watchdog('govcon_chat_post_api_response', json_encode($output),[], WATCHDOG_INFO);
+  curl_close($ch);
+
+  return $json;
+}
+
+function _post_to_slack($message = "", $thread_ts = null) {
+  $ch = curl_init();
+  $_webhook = variable_get('govcon_chat_webhook', "");
+
+  $data = [
+    'type' => 'message',
+    'channel' => variable_get('govcon_chat_channel_id', ""),
+    'text' => $message,
+  ];
+
+  if (isset($thread_ts)) {
+    $data['thread_ts'] = $thread_ts;
+  }
+  $data_string = json_encode($data);
+
+  curl_setopt($ch, CURLOPT_URL, $_webhook);
+  curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "POST");
+  curl_setopt($ch, CURLOPT_POSTFIELDS, $data_string);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+  curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+    'Content-Type: application/json',
+    'Content-Length: ' . strlen($data_string))
+  );
+
+  $output = curl_exec($ch);
+
+  curl_close($ch);
+
+  return $output;
+}

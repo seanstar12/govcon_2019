@@ -1,0 +1,443 @@
+/* Floating window */
+
+.slack-chat-floating-window {
+  position: fixed;
+  bottom: 0;
+  right: 0;
+  width: 260px;
+  background-color: #ffffff;
+  border: 1px solid #7aa8c5;
+}
+
+.slack-chat-floating-window .slack-chat-window-header {
+  position: relative;
+  min-height: 20px;
+  padding: 5px;
+  background-color: #238dcf;
+  color: white;
+  font-weight: bold;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.slack-chat-floating-window .slack-chat-window-content {
+  display: none;
+  padding: 15px;
+}
+
+.slack-chat-floating-window .slack-chat-window-close {
+  display: none;
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 20px;
+  height: 20px
+}
+
+.slack-chat-floating-window .slack-chat-window-close:after {
+  content: '';
+  display: block;
+  position: absolute;
+  top: 9px;
+  left: 5px;
+  width: 10px;
+  height: 2px;
+  background-color: #ffffff;
+}
+
+/* Floating window: open state */
+
+.slack-chat-floating-window.slack-chat-open .slack-chat-window-close {
+  display: block;
+}
+
+.slack-chat-floating-window.slack-chat-open .slack-chat-window-content {
+  display: block;
+}
+
+/* Chat box */
+
+.slack-chat-chat .slack-chat-conversation {
+  display: none;
+}
+
+.slack-chat-chat .slack-chat-messages {
+  overflow: auto;
+  height: 260px;
+  margin-bottom: 20px;
+}
+
+.slack-chat-chat .slack-chat-message-form {
+  position: relative;
+  text-align: center;
+}
+
+.slack-chat-chat .slack-chat-message-form .form-item {
+  float: left;
+  width: 100%;
+  padding-right: 100px;
+  box-sizing: border-box;
+}
+
+.slack-chat-chat .slack-chat-message-form .slack-chat-message-field {
+  width: 100%;
+}
+
+.slack-chat-chat .slack-chat-message-form .slack-chat-send-button {
+  position: absolute;
+  top: 1px;
+  right: 0;
+}
+
+.slack-chat-chat .slack-chat-ended-message {
+  display: none;
+  color: #999999;
+}
+
+.slack-chat-chat .slack-chat-welcome {
+  margin-bottom: 10px;
+}
+
+.slack-chat-chat .slack-chat-error {
+  color: #a94442;
+}
+
+.slack-chat-chat .slack-chat-message-container {
+  margin-bottom: 5px;
+}
+
+.slack-chat-chat .slack-chat-message-user {
+  margin-right: 10px;
+  font-weight: bold;
+}
+
+/* Chat box: ended state */
+
+.slack-chat-chat.slack-chat-ended .slack-chat-message-form {
+  display: none;
+}
+
+.slack-chat-chat.slack-chat-ended .slack-chat-ended-message {
+  display: block;
+}
+
+/* Chat box: started state */
+
+.slack-chat-chat.slack-chat-started .slack-chat-start-form {
+  display: none;
+}
+
+.slack-chat-chat.slack-chat-started .slack-chat-conversation {
+  display: block;
+}
+@import url(https://fonts.googleapis.com/css?family=Open+Sans:400,300,600,700);
+body {
+  font-family:'Open Sans', sans-serif;
+  font-size:14px;
+}
+.info {
+  position:fixed;
+  width:300px;
+  top:0px;
+  left:0px;
+  border:1px solid #e0e0e0;
+  background-color:#ffffff;
+  -webkit-border-bottom-right-radius: 5px;
+  -moz-border-radius-bottomright: 5px;
+  border-bottom-right-radius: 5px;
+  -webkit-box-shadow: 0px 1px 5px 0px rgba(50, 50, 50, 0.75);
+  -moz-box-shadow:    0px 1px 5px 0px rgba(50, 50, 50, 0.75);
+  box-shadow:         0px 1px 5px 0px rgba(50, 50, 50, 0.75);
+}
+.info .cover {
+  width:100%;
+}
+.profilePic {
+  width:80px;
+  height:80px;
+  border-radius:100%;
+  position:absolute;
+  top:130px;
+  left:50%;
+  margin-left:-40px;
+}
+.infopadding { 
+  height:40px;
+}
+.title {
+  text-align:center;
+}
+.morestuff {
+  text-align:center;
+  padding:10px;
+}
+.corin-checkbox {
+  visibility: hidden;
+}
+.corin-checkbox-container {
+  position: relative;
+  display: inline-block;
+}
+.corin-checkbox-sub {
+  position: absolute;
+  top: 0;
+  left: 0;
+
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+}
+
+.corin-checkbox-sub.unchecked {
+  background: #f2f2f2;
+  border:2px solid #808080;
+}
+
+.corin-checkbox-sub.checked {
+  background: #0585D6;
+  content:"\0252";
+  border:2px solid #0585D6;
+}
+hr {
+  border:0px;
+  height:1.2px;
+  width:100%;
+  background-color:#C9C9C9;
+}
+.chatarea {
+  position:fixed;
+  bottom:0px;
+  right:0px;
+  margin:0px;
+  padding:0px;
+}
+.chat {
+  margin:0px;
+  padding:0px;
+  width:250px;
+  float:right;
+  overflow: hidden;
+  margin-right: 30px;
+  -webkit-box-shadow: 0px 1px 5px 0px rgba(50, 50, 50, 0.75);
+  -moz-box-shadow: 0px 1px 5px 0px rgba(50, 50, 50, 0.75);
+  box-shadow: 0px 1px 5px 0px rgba(50, 50, 50, 0.75);
+}
+.chathead {
+  width: 250px;
+  background-color:#1a1a1a;
+  height: 30px;
+  color:#ffffff;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  cursor:pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.chathead div {
+  padding-left: 10px;
+  padding-right: 5px;
+}
+.chathead img {
+  width:20px;
+  vertical-align:middle;
+  padding-right:10px;
+}
+.chathead-actions {
+  width: 50px;
+  height: 100%;
+  display: flex;
+}
+.chathead-toggle:hover,
+.chathead-close:hover {
+  background-color: #3c3c3c;
+}
+.chathead-toggle, .chathead-close {
+  height: 100%;
+  width: 24px;
+}
+.chathead-toggle:after {
+  content: '';
+  display: block;
+  margin-top: 20px;
+  margin-left: 8px;
+  width: 10px;
+  height: 2px;
+  background-color: #ffffff;
+}
+.chathead-close:after {
+  content: '+';
+  display: block;
+  margin-top: 10px;
+  margin-left: 5px;
+  font-size: 24px;
+  line-height: 16px;
+  transform: rotate(45deg);
+}
+.settings {
+  height:30px;
+  width:100%;
+  border-bottom:1px solid #E0E0E0;
+  background-color:#ffffff;
+  position:relative;
+}
+.settings img {
+  width:15px;
+  padding-top:7px;
+  padding-left:10px;
+}
+.settingsExpand {
+  position:absolute;
+  width:250px;
+  z-index:10;
+  top:0px;
+  left:0px;
+  border:1px solid #e0e0e0;
+  box-sizing:border-box;
+  padding:10px;
+  display:-moz-inline-stack;
+  display:inline-block;
+  zoom:1;
+  *display:inline;
+  background-color:#ffffff;
+  -webkit-box-shadow: 0px 1px 5px 0px rgba(50, 50, 50, 0.75);
+  -moz-box-shadow:    0px 1px 5px 0px rgba(50, 50, 50, 0.75);
+  box-shadow:         0px 1px 5px 0px rgba(50, 50, 50, 0.75);
+}
+.settingsExpand:before {
+  content:"";
+  width: 0; 
+  height: 0; 
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 5px solid #e0e0e0;
+  position:absolute;
+  top:-5px;
+  left:13px;
+  margin-left:-2.5px;
+}
+.feed {
+  padding:10px;
+  background-color:#f2f2f2;
+  max-height:300px;
+  height:280px;
+  overflow-y:scroll;
+  overflow-x:hidden;
+}
+.feed img {
+  width: 35px;
+  height: 30px;
+}
+.other, .me {
+  position:relative;
+  margin-top:10px;
+  
+}
+.me {
+  #-webkit-animation:intro 0.2s;
+  #animation:intro 0.2s;
+}
+.other {
+  #-webkit-animation:intro2 0.2s;
+  #animation:intro2 0.2s;
+  position:relative;
+}
+.other{
+}
+.other .profile {
+  position:absolute;
+  top:0px;
+  left:0px;
+}
+.other .message {
+  min-height:30px;
+  margin-left:30px;
+  border:1px solid #E0E0E0;
+  background-color:#ffffff;
+  padding:10px;
+  color:#1a1a1a;
+}
+
+.other .message:before {
+  content:"";
+  width: 0; 
+  height: 0;
+  position:absolute;
+  top:0px;
+  left:27px;
+  width: 0; 
+  height: 0; 
+  border-top: 10px solid transparent;
+  border-bottom: 10px solid transparent;
+  border-right:10px solid #ffffff; 
+}
+.me .profile {
+  position: absolute;
+  bottom: 0px;
+  right: 0px;
+}
+.me .message {
+  min-height: 30px;
+  max-width: 161px;
+  border: 1px solid #E0E0E0;
+  background-color: #ffffff;
+  padding: 10px;
+  color:#1a1a1a;
+}
+
+.other .chat-status {
+  height: 100%;
+  border: 1px solid #E0E0E0;
+  background-color: #b7b7b7;
+  padding: 5px;
+  padding-bottom: 10px;
+  color: #5a5a5a;
+  border-radius: 4px;
+  margin: 0 auto;
+  text-align: center;
+  font-size: 10px;
+}
+.meta {
+  padding-top:5px;
+  font-size:12px;
+  color:#808080;
+}
+.messagebox {
+  min-height:30px;
+  width:250px;
+  border-top:1px solid #e0e0e0;
+  background-color:#ffffff;
+}
+.messagebox-wrap {
+  padding-top: 5px;
+  background-color: #f2f2f2;
+}
+.messagebox textarea {
+  width:100%;
+  max-width:100%;
+  min-width: 100%;
+  box-sizing:border-box;
+  height: 30px;
+  min-height: 30px;
+  border:0px;
+  font-family:Arial;
+  padding-left:10px;
+  padding-top: 5px;
+}
+@-webkit-keyframes intro {
+  0% { opacity:0; left:25px;}
+  100% { opacity:1; left:0px;}
+}
+@-webkit-keyframes intro2 {
+  0% { opacity:0; left:-25px;}
+  100% { opacity:1; left:0px;}
+}
+@keyframes intro {
+  0% { opacity:0; left:25px;}
+  100% { opacity:1; left:0px;}
+}
+@keyframes intro2 {
+  0% { opacity:0; left:-25px;}
+  100% { opacity:1; left:0px;}
+}
+
